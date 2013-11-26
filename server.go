@@ -54,7 +54,7 @@ func main() {
 		}
 
 	})
-	m.Put("/queue/:name", func(res http.ResponseWriter, req *http.Request, params martini.Params) {
+	m.Post("/queue/:name", func(res http.ResponseWriter, req *http.Request, params martini.Params) {
 		response := make(chan chan int)
 		request := ChanRequest{name: params["name"], response: response}
 		requestChan <- request
