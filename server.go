@@ -27,14 +27,12 @@ func main() {
 		for {
 			r := <-req
 
-			queue, ok := channels[r.name]
-			if ok {
-				r.response <- queue
-			} else {
-				newchan := make(Queue, 10)
-				channels[r.name] = newchan
-				r.response <- newchan
+			// create if there's no existing queue
+			if _, ok := channels[r.name]; !ok {
+				channels[r.name] = make(Queue, 10)
 			}
+
+			r.response <- channels[r.name]
 		}
 	}(requestChan)
 
