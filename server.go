@@ -6,13 +6,14 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"strconv"
 	"time"
 )
 
+type Queue chan string
+
 type ChanRequest struct {
 	name     string
-	response chan chan int
+	response chan Queue
 }
 
 func main() {
@@ -21,7 +22,7 @@ func main() {
 	var requestChan = make(chan ChanRequest)
 
 	go func(req chan ChanRequest) {
-		var channels = make(map[string]chan int, 10)
+		var channels = make(map[string]Queue, 10)
 
 		for {
 			r := <-req
@@ -30,8 +31,7 @@ func main() {
 			if ok {
 				r.response <- queue
 			} else {
-				fmt.Println("adding new channel")
-				newchan := make(chan int, 10)
+				newchan := make(Queue, 10)
 				channels[r.name] = newchan
 				r.response <- newchan
 			}
@@ -39,43 +39,37 @@ func main() {
 	}(requestChan)
 
 	m.Get("/queue/:name", func(res http.ResponseWriter, params martini.Params) {
-		response := make(chan chan int)
-		request := ChanRequest{name: params["name"], response: response}
+		request := ChanRequest{name: params["name"], response: make(chan Queue)}
 		requestChan <- request
-		queue := <-response
+		queue := <-request.response
+		close(request.response)
 
 		// read from the queue with a 30 second timeout
 		select {
 		case val := <-queue:
 			fmt.Fprintln(res, val)
 		case <-time.After(time.Second * 30):
-			res.WriteHeader(408)
-			fmt.Fprintln(res, "TIMEOUT")
+			http.Error(res, "Timeout", http.StatusRequestTimeout)
 		}
 
 	})
 	m.Post("/queue/:name", func(res http.ResponseWriter, req *http.Request, params martini.Params) {
-		response := make(chan chan int)
-		request := ChanRequest{name: params["name"], response: response}
+		request := ChanRequest{name: params["name"], response: make(chan Queue)}
 		requestChan <- request
-		queue := <-response
+		queue := <-request.response
+		close(request.response)
 
 		body, err := ioutil.ReadAll(req.Body)
 		if err != nil {
-			fmt.Fprintln(res, err)
-		}
-
-		intval, err := strconv.Atoi(string(body))
-		if err != nil {
-			fmt.Fprintln(res, err)
+			http.Error(res, "Unable to read request body: "+err.Error(), http.StatusInternalServerError)
+			return
 		}
 
 		// send to the queue unless it's full
 		select {
-		case queue <- intval:
+		case queue <- string(body):
 		default:
-			res.WriteHeader(406)
-			fmt.Fprintln(res, "QUEUE FULL")
+			http.Error(res, "Queue Full", http.StatusNotAcceptable)
 		}
 	})
 	m.Run()
