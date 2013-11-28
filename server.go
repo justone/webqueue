@@ -8,16 +8,16 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/justone/webqueue/queue"
+	"github.com/justone/webqueue/queueman"
 )
 
 func main() {
 	m := martini.Classic()
 
-	queue.Init()
+	queueman.Init()
 
 	m.Get("/queue/:name", func(res http.ResponseWriter, params martini.Params) {
-		queue := queue.Get(params["name"])
+		queue := queueman.Get(params["name"])
 
 		// read from the queue with a 30 second timeout
 		select {
@@ -29,7 +29,7 @@ func main() {
 
 	})
 	m.Post("/queue/:name", func(res http.ResponseWriter, req *http.Request, params martini.Params) {
-		queue := queue.Get(params["name"])
+		queue := queueman.Get(params["name"])
 
 		body, err := ioutil.ReadAll(req.Body)
 		if err != nil {

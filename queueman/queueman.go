@@ -1,4 +1,4 @@
-package queue
+package queueman
 
 type Queue chan string
 
