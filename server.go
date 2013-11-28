@@ -7,40 +7,17 @@ import (
 	"io/ioutil"
 	"net/http"
 	"time"
+
+	"github.com/justone/webqueue/queue"
 )
-
-type Queue chan string
-
-type ChanRequest struct {
-	name     string
-	response chan Queue
-}
 
 func main() {
 	m := martini.Classic()
 
-	var requestChan = make(chan ChanRequest)
-
-	go func(req chan ChanRequest) {
-		var channels = make(map[string]Queue, 10)
-
-		for {
-			r := <-req
-
-			// create if there's no existing queue
-			if _, ok := channels[r.name]; !ok {
-				channels[r.name] = make(Queue, 10)
-			}
-
-			r.response <- channels[r.name]
-		}
-	}(requestChan)
+	queue.Init()
 
 	m.Get("/queue/:name", func(res http.ResponseWriter, params martini.Params) {
-		request := ChanRequest{name: params["name"], response: make(chan Queue)}
-		requestChan <- request
-		queue := <-request.response
-		close(request.response)
+		queue := queue.Get(params["name"])
 
 		// read from the queue with a 30 second timeout
 		select {
@@ -52,10 +29,7 @@ func main() {
 
 	})
 	m.Post("/queue/:name", func(res http.ResponseWriter, req *http.Request, params martini.Params) {
-		request := ChanRequest{name: params["name"], response: make(chan Queue)}
-		requestChan <- request
-		queue := <-request.response
-		close(request.response)
+		queue := queue.Get(params["name"])
 
 		body, err := ioutil.ReadAll(req.Body)
 		if err != nil {
