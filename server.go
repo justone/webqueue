@@ -19,11 +19,11 @@ func main() {
 	m.Get("/queue/:name", func(res http.ResponseWriter, params martini.Params) {
 		queue := queueman.Get(params["name"])
 
-		// read from the queue with a 30 second timeout
+		// read from the queue with a 8 second timeout
 		select {
 		case val := <-queue:
 			fmt.Fprintln(res, val)
-		case <-time.After(time.Second * 30):
+		case <-time.After(time.Second * 8):
 			http.Error(res, "Timeout", http.StatusRequestTimeout)
 		}
 
